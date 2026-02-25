@@ -73,8 +73,8 @@ app.post(
         }
     }
 
-    // 4️⃣ Acknowledge Stripe AFTER everything succeeded
-    res.status(200).json({ received: true });
+    // 4️⃣ Acknowledge Stripe AFTER everything succeeded 
+    return res.status(200).json({ received: true });
   }
 );
 
