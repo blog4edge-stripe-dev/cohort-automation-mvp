@@ -3,7 +3,7 @@ const express = require("express");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const pool = require("./db");
 const { handlePaymentSucceeded } = require("./services/paymentService");
-
+const { log } = require("./utils/logger");
 
 const app = express();
 
@@ -17,6 +17,7 @@ app.post(
   "/webhook",
   express.raw({ type: "application/json" }),
   async (req, res) => {
+    const startTime = Date.now();
     const sig = req.headers["stripe-signature"];
     const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -30,18 +31,30 @@ app.post(
         endpointSecret
       );
     } catch (err) {
-      console.error("❌ Signature verification failed:", err.message);
+      log("error", "Stripe signature verification failed", {
+        error: err.message,
+      });
+
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
     const eventId = event.id;
     const eventType = event.type;
 
-    console.log("📩 Verified event:", eventId, eventType);
+    log("info", "Webhook verified", {
+      eventId,
+      eventType,
+    });
 
-    // 2️⃣ Database idempotency (atomic)
+    const client = await pool.connect();
+
     try {
-      const result = await pool.query(
+      await client.query("BEGIN");
+
+      log("info", "Transaction started", { eventId });
+
+      // Insert into processed_events
+      const result = await client.query(
         `
         INSERT INTO processed_events (id, processed_at)
         VALUES ($1, NOW())
@@ -51,45 +64,76 @@ app.post(
         [eventId]
       );
 
-      // If no row returned → duplicate
+      // Duplicate event
       if (result.rowCount === 0) {
-        console.log("⚠️ Duplicate event ignored:", eventId);
+        await client.query("ROLLBACK");
+
+        log("warn", "Duplicate event ignored", {
+          eventId,
+        });
+
         return res.status(200).json({ ignored: true });
-      } 
+      }
+
+      log("info", "Event marked as processing", {
+        eventId,
+      });
+
+      // Run business logic
+      if (eventType === "payment_intent.succeeded") {
+        await handlePaymentSucceeded(event, client);
+      } else {
+        log("info", "Unhandled event type skipped", {
+          eventId,
+          eventType,
+        });
+      }
+
+      await client.query("COMMIT");
+
+      const durationMs = Date.now() - startTime;
+
+      log("info", "Transaction committed successfully", {
+        eventId,
+        durationMs,
+      });
+
+      return res.status(200).json({ received: true });
 
     } catch (err) {
-      console.error("❌ Database error:", err);
-      return res.status(500).send("Database error");
-    }
+      await client.query("ROLLBACK");
 
-    // 3️⃣ Run business logic ONLY if event is new
-    if (eventType === "payment_intent.succeeded") {
-        try {
-                await handlePaymentSucceeded(event);
-        } 
-        catch (err) {
-            console.error("❌ Payment processing failed:", err);
-            return res.status(500).send("Payment logic failed");
-        }
-    }
+      const durationMs = Date.now() - startTime;
 
-    // 4️⃣ Acknowledge Stripe AFTER everything succeeded 
-    return res.status(200).json({ received: true });
+      log("error", "Transaction rolled back", {
+        eventId,
+        error: err.message,
+        durationMs,
+      });
+
+      return res.status(500).send("Webhook processing failed");
+
+    } finally {
+      client.release();
+    }
   }
 );
-
 
 // Optional: DB connection test on startup
 pool.query("SELECT NOW()")
   .then(res => {
-    console.log("✅ DB Connected:", res.rows[0]);
+    log("info", "Database connected", {
+      serverTime: res.rows[0],
+    });
   })
   .catch(err => {
-    console.error("❌ DB Connection Error:", err);
+    log("error", "Database connection failed", {
+      error: err.message,
+    });
   });
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server listening on port ${PORT}`);
+  log("info", "Server started", { port: PORT });
 });
