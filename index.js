@@ -51,23 +51,18 @@ app.post(
       eventCreated
     });
 
-    // 3️⃣ Log Stripe object snapshot (VERY useful for debugging)
-    log("info", "Stripe object snapshot", {
-      eventId,
-      eventType,
-      objectType: stripeObject.object,
-      objectId: stripeObject.id,
-      status: stripeObject.status || null,
-      customer: stripeObject.customer || null,
-      subscription: stripeObject.subscription || null,
-      invoice: stripeObject.invoice || null,
-      amount:
-        stripeObject.amount ||
-        stripeObject.amount_paid ||
-        stripeObject.amount_due ||
-        null,
-      currency: stripeObject.currency || null
-    });
+    // 3️⃣ Log Stripe object (VERY useful for debugging)
+
+    console.log("🔔 Stripe Webhook Event Received");
+    console.log("Event Type:", eventType);
+    console.log("Event ID:", eventId);
+    console.log("Object Type:", stripeObject.object);
+    console.log("Object ID:", stripeObject.id);
+    console.log("Status:", stripeObject.status || "N/A");
+    console.log("Customer:", stripeObject.customer || "N/A");
+    console.log("Subscription:", stripeObject.subscription || "N/A");
+    console.log("Invoice:", stripeObject.invoice || "N/A");
+    console.log("------------------------------------");
 
     const client = await pool.connect();
 
@@ -166,7 +161,8 @@ app.post(
         eventId,
         durationMs,
       });
-
+      
+      console.log("Should Return 200 Log for this Event Type:", eventType);
       return res.status(200).json({ received: true });
 
     } catch (err) {
