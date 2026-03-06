@@ -40,10 +40,33 @@ app.post(
 
     const eventId = event.id;
     const eventType = event.type;
+    const eventCreated = event.created;
 
+    const stripeObject = event.data.object;
+
+    // 2️⃣ Log webhook metadata
     log("info", "Webhook verified", {
       eventId,
       eventType,
+      eventCreated
+    });
+
+    // 3️⃣ Log Stripe object snapshot (VERY useful for debugging)
+    log("info", "Stripe object snapshot", {
+      eventId,
+      eventType,
+      objectType: stripeObject.object,
+      objectId: stripeObject.id,
+      status: stripeObject.status || null,
+      customer: stripeObject.customer || null,
+      subscription: stripeObject.subscription || null,
+      invoice: stripeObject.invoice || null,
+      amount:
+        stripeObject.amount ||
+        stripeObject.amount_paid ||
+        stripeObject.amount_due ||
+        null,
+      currency: stripeObject.currency || null
     });
 
     const client = await pool.connect();
@@ -79,14 +102,60 @@ app.post(
         eventId,
       });
 
-      // Run business logic
-      if (eventType === "payment_intent.succeeded") {
-        await handlePaymentSucceeded(event, client);
-      } else {
-        log("info", "Unhandled event type skipped", {
-          eventId,
-          eventType,
-        });
+      // 4️⃣ Run business logic
+      switch (eventType) {
+
+        case "payment_intent.succeeded":
+          await handlePaymentSucceeded(event, client);
+          break;
+
+        case "invoice.payment_succeeded":
+          log("info", "Invoice payment succeeded event received", {
+            eventId,
+            invoiceId: stripeObject.id,
+            subscriptionId: stripeObject.subscription,
+            customerId: stripeObject.customer
+          });
+          break;
+
+        case "invoice.payment_failed":
+          log("info", "Invoice payment failed event received", {
+            eventId,
+            invoiceId: stripeObject.id,
+            subscriptionId: stripeObject.subscription
+          });
+          break;
+
+        case "customer.subscription.created":
+          log("info", "Subscription created", {
+            eventId,
+            subscriptionId: stripeObject.id,
+            customerId: stripeObject.customer,
+            status: stripeObject.status
+          });
+          break;
+
+        case "customer.subscription.updated":
+          log("info", "Subscription updated", {
+            eventId,
+            subscriptionId: stripeObject.id,
+            status: stripeObject.status
+          });
+          break;
+
+        case "customer.subscription.deleted":
+          log("info", "Subscription deleted", {
+            eventId,
+            subscriptionId: stripeObject.id,
+            status: stripeObject.status
+          });
+          break;
+
+        default:
+          log("info", "Unhandled event type skipped", {
+            eventId,
+            eventType,
+          });
       }
 
       await client.query("COMMIT");
@@ -101,6 +170,7 @@ app.post(
       return res.status(200).json({ received: true });
 
     } catch (err) {
+
       await client.query("ROLLBACK");
 
       const durationMs = Date.now() - startTime;
@@ -119,6 +189,7 @@ app.post(
   }
 );
 
+
 // Optional: DB connection test on startup
 pool.query("SELECT NOW()")
   .then(res => {
@@ -131,6 +202,7 @@ pool.query("SELECT NOW()")
       error: err.message,
     });
   });
+
 
 const PORT = process.env.PORT || 3000;
 
