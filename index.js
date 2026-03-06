@@ -56,6 +56,7 @@ app.post(
     console.log("🔔 Stripe Webhook Event Received");
     console.log("Event Type:", eventType);
     console.log("Event ID:", eventId);
+    console.log("Event Created:", new Date(event.created * 1000));
     console.log("Object Type:", stripeObject.object);
     console.log("Object ID:", stripeObject.id);
     console.log("Status:", stripeObject.status || "N/A");
