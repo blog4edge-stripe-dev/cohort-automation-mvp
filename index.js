@@ -106,45 +106,23 @@ app.post(
           break;
 
         case "invoice.payment_succeeded":
-          log("info", "Invoice payment succeeded event received", {
-            eventId,
-            invoiceId: stripeObject.id,
-            subscriptionId: stripeObject.subscription,
-            customerId: stripeObject.customer
-          });
+          console.log("Event Type:", eventType);
           break;
 
         case "invoice.payment_failed":
-          log("info", "Invoice payment failed event received", {
-            eventId,
-            invoiceId: stripeObject.id,
-            subscriptionId: stripeObject.subscription
-          });
+          console.log("Event Type:", eventType);
           break;
 
         case "customer.subscription.created":
-          log("info", "Subscription created", {
-            eventId,
-            subscriptionId: stripeObject.id,
-            customerId: stripeObject.customer,
-            status: stripeObject.status
-          });
+          console.log("Event Type:", eventType);
           break;
 
         case "customer.subscription.updated":
-          log("info", "Subscription updated", {
-            eventId,
-            subscriptionId: stripeObject.id,
-            status: stripeObject.status
-          });
+          console.log("Event Type:", eventType);
           break;
 
         case "customer.subscription.deleted":
-          log("info", "Subscription deleted", {
-            eventId,
-            subscriptionId: stripeObject.id,
-            status: stripeObject.status
-          });
+          console.log("Event Type:", eventType);
           break;
 
         default:
