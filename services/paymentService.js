@@ -8,11 +8,13 @@ async function handlePaymentSucceeded(event, client) {
   const paymentId = paymentIntent.id;
   const eventId = event.id;
 
-  log("info", "Processing payment_intent.succeeded", {
+/*   log("info", "Processing payment_intent.succeeded", {
     eventId,
     paymentIntentId: paymentId,
   });
+ */
 
+  console.log("Processing payment_intent.succeeded :", paymentId);
   const email =
     paymentIntent.receipt_email ||
     paymentIntent.charges?.data[0]?.billing_details?.email ||
@@ -53,12 +55,7 @@ async function handlePaymentSucceeded(event, client) {
         paymentIntentId: paymentId,
       });
     } else {
-      log("info", "Payment stored successfully", {
-        eventId,
-        paymentIntentId: paymentId,
-        amount,
-        currency,
-      });
+      console.log("Payment Stored Successfully :", paymentId);
     }
 
   } catch (error) {

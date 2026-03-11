@@ -101,6 +101,34 @@ app.post(
           await handlePaymentSucceeded(event, client);
           break;
 
+          case "payment_intent.succeeded":
+            const paymentIntentId = event.data.object.id;
+
+            // Verify PaymentIntent state directly from Stripe - double-check critical financial events.
+            // GET /v1/payment_intents/{paymentIntentId} (https://api.stripe.com/v1/payment_intents/{id})
+            // asynchronous network request
+            // Node.js → Stripe server → Stripe response → Node.js continues
+            // Without await, code would move forward before Stripe responds.
+            //So your Node SDK is just a wrapper around Stripe's REST API. (Post HTTP request --> add authorisation--->
+            // stripe sends us response ----> Parse the JSON response and handle errors)
+            // Internally this is happening  -
+            /*
+              HTTP request → Stripe API
+              Authorization → using your secret key
+              Receive JSON → convert to JavaScript object
+              Return result
+            */
+
+            const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+            if (paymentIntent.status !== "succeeded") { 
+                console.log("Payment Intent Verification Failed:", eventType);
+                throw new Error("PaymentIntent status not succeeded during verification");
+            }
+
+            await handlePaymentSucceeded(event, client);
+            break;
+
         case "invoice.payment_succeeded":
           console.log("Event Type:", eventType);
           break;
