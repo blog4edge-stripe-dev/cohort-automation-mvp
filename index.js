@@ -96,10 +96,7 @@ app.post(
 
       // 4️⃣ Run business logic
       switch (eventType) {
-
-        case "payment_intent.succeeded":
-          await handlePaymentSucceeded(event, client);
-          break;
+ 
 
           case "payment_intent.succeeded":
             const paymentIntentId = event.data.object.id;
