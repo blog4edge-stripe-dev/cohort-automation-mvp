@@ -20,7 +20,6 @@ app.post(
     const startTime = Date.now();
     const sig = req.headers["stripe-signature"];
     const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
     let event;
 
     // 1️⃣ Verify Stripe signature
@@ -45,24 +44,21 @@ app.post(
     const stripeObject = event.data.object;
 
     // 2️⃣ Log webhook metadata
-    log("info", "Webhook verified", {
+    /* log("info", "Webhook verified", {
       eventId,
       eventType,
       eventCreated
-    });
+    }); */ 
 
-    // 3️⃣ Log Stripe object (VERY useful for debugging)
+    // 3️⃣ Log Stripe object (VERY useful for debugging) 
 
-    console.log("🔔 Stripe Webhook Event Received");
-    console.log("Event Type:", eventType);
+    console.log("🔔 Stripe Webhook Event Received & Verified :: Event Type:", eventType);
     console.log("Event ID:", eventId);
     console.log("Event Created:", new Date(event.created * 1000));
     console.log("Object Type:", stripeObject.object);
     console.log("Object ID:", stripeObject.id);
     console.log("Status:", stripeObject.status || "N/A");
     console.log("Customer:", stripeObject.customer || "N/A");
-    console.log("Subscription:", stripeObject.subscription || "N/A");
-    console.log("Invoice:", stripeObject.invoice || "N/A");
     console.log("------------------------------------");
 
     const client = await pool.connect();
@@ -70,7 +66,7 @@ app.post(
     try {
       await client.query("BEGIN");
 
-      log("info", "Transaction started", { eventId });
+      console.log("Transaction started for event Type:", eventType);
 
       // Insert into processed_events
       const result = await client.query(
@@ -94,9 +90,9 @@ app.post(
         return res.status(200).json({ ignored: true });
       }
 
-      log("info", "Event marked as processing", {
+      /* log("info", "Event marked as processing", {
         eventId,
-      });
+      }); */
 
       // 4️⃣ Run business logic
       switch (eventType) {
@@ -136,12 +132,14 @@ app.post(
 
       const durationMs = Date.now() - startTime;
 
-      log("info", "Transaction committed successfully", {
+      /* log("info", "Transaction committed successfully", {
         eventId,
         durationMs,
-      });
+      }); */
+
+      console.log("Transaction committed event Type:", eventType);
+      console.log("Return 200 Event Type:", eventType);
       
-      console.log("Should Return 200 Log for this Event Type:", eventType);
       return res.status(200).json({ received: true });
 
     } catch (err) {
