@@ -140,11 +140,18 @@ app.post(
               const invoice = await stripe.invoices.retrieve(invoiceId);
               console.log("Stripe Invoice Status:", invoice.status);
 
-              if (invoice.status === "open" || invoice.status === "uncollectible") {
+              if (invoice.payment_intent) {
 
-                  console.log("Invoice payment has failed.",invoice.payment_intent.last_payment_error);
+                  const failureReason =
+                  invoice.payment_intent.last_payment_error?.message || "Unknown";
 
-              }
+                  console.log("Payment failure reason:", failureReason);
+
+                } else {
+
+                console.log("No payment_intent found for this invoice");
+
+                } 
               
             break;
 
