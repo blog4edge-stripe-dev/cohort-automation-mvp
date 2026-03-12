@@ -103,7 +103,7 @@ app.post(
 
             // Verify PaymentIntent state directly from Stripe - double-check critical financial events.
             // GET /v1/payment_intents/{paymentIntentId} (https://api.stripe.com/v1/payment_intents/{id})
-            // asynchronous network request
+            // synchronous call to Stripe because we wait for Stripe to return the state
             // Node.js → Stripe server → Stripe response → Node.js continues
             // Without await, code would move forward before Stripe responds.
             //So your Node SDK is just a wrapper around Stripe's REST API. (Post HTTP request --> add authorisation--->
