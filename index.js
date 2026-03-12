@@ -131,8 +131,22 @@ app.post(
           break;
 
         case "invoice.payment_failed":
-          console.log("Event Type:", eventType);
-          break;
+
+              console.log("Event Type:", eventType);
+              console.log("Payment failed event received. Verifying invoice state with Stripe API...");
+              const invoiceId = event.data.object.id;
+
+              // Fetch authoritative invoice state from Stripe
+              const invoice = await stripe.invoices.retrieve(invoiceId);
+              console.log("Stripe Invoice Status:", invoice.status);
+
+              if (invoice.status === "open" || invoice.status === "uncollectible") {
+
+                  console.log("Invoice payment has failed.",invoice.payment_intent.last_payment_error);
+
+              }
+              
+            break;
 
         case "customer.subscription.created":
           console.log("Event Type:", eventType);
