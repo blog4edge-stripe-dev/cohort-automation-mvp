@@ -5,6 +5,7 @@ const pool = require("./db");
 
 const { handlePaymentSucceeded } = require("./services/paymentService");
 const { createSubscription } = require("./services/subscriptionService");
+const { handleInvoicePaymentSucceeded } = require("./services/invoiceService");
 
 const { log } = require("./utils/logger");
 
@@ -72,7 +73,12 @@ app.post(
       // 3️⃣ Event handling (ORDER-SAFE)
       switch (eventType) {
 
-        case "customer.subscription.created":
+        case "invoice.payment_succeeded":
+            await handleInvoicePaymentSucceeded(event, client);
+        break;
+
+
+        /* case "customer.subscription.created":
           await createSubscription(event, client);
           break;
 
@@ -93,17 +99,14 @@ app.post(
               Return result
             */
             // Never grant access on checkout completion. - Checkout is authorization, not proof of payment.
-          const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+          /* const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
           if (paymentIntent.status !== "succeeded") {
             throw new Error("PaymentIntent verification failed");
           }
           await handlePaymentSucceeded(event, client);
-          break;
+          break; */ 
 
-        case "invoice.payment_succeeded":
-          console.log("Invoice payment succeeded");
-          break;
       }
 
       await client.query("COMMIT");
