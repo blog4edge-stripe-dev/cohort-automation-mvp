@@ -106,11 +106,11 @@ app.post(
           console.log("Invoice payment succeeded");
           break;
 
-        default:
+        /* default:
           log("info", "Unhandled event type skipped", {
             eventId,
             eventType,
-          });
+          }); */
       }
 
       await client.query("COMMIT");
