@@ -78,10 +78,10 @@ app.post(
         break;
 
 
-        /* case "customer.subscription.created":
+       case "customer.subscription.created":
           await createSubscription(event, client);
           break;
-
+ /* 
         case "payment_intent.succeeded":
 
           const paymentIntentId = stripeObject.id;
