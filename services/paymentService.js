@@ -1,73 +1,76 @@
 // services/paymentService.js
 
-const { log } = require("../utils/logger");
+const { logSubscriptionAudit } = require("../utils/logger");
 
 async function handlePaymentSucceeded(event, client) {
+
   const paymentIntent = event.data.object;
 
-  const paymentId = paymentIntent.id;
-  const eventId = event.id;
+  // 1️⃣ Get invoice → subscription
+  const invoiceId = paymentIntent.invoice;
 
-/*   log("info", "Processing payment_intent.succeeded", {
-    eventId,
-    paymentIntentId: paymentId,
-  });
- */
+  const invoice = await require("stripe")(process.env.STRIPE_SECRET_KEY)
+    .invoices.retrieve(invoiceId);
 
-  console.log("Processing payment_intent.succeeded :", paymentId);
-  const email =
-    paymentIntent.receipt_email ||
-    paymentIntent.charges?.data[0]?.billing_details?.email ||
-    null;
+  const subscriptionId = invoice.subscription;
 
-  const amount = paymentIntent.amount;
-  const currency = paymentIntent.currency;
-  const stripeCustomerId = paymentIntent.customer || null;
-
-  try {
-    const result = await client.query(
-      `
-      INSERT INTO payments (
-        id,
-        stripe_event_id,
-        email,
-        amount,
-        currency,
-        stripe_customer_id
-      )
-      VALUES ($1, $2, $3, $4, $5, $6)
-      ON CONFLICT (id) DO NOTHING
-      RETURNING id
-      `,
-      [
-        paymentId,
-        eventId,
-        email,
-        amount,
-        currency,
-        stripeCustomerId
-      ]
-    );
-
-    if (result.rowCount === 0) {
-      log("warn", "Payment already exists (business idempotency hit)", {
-        eventId,
-        paymentIntentId: paymentId,
-      });
-    } else {
-      console.log("Payment Stored Successfully :", paymentId);
-    }
-
-  } catch (error) {
-    log("error", "Failed to insert payment", {
-      eventId,
-      paymentIntentId: paymentId,
-      error: error.message,
-    });
-
-    // IMPORTANT: rethrow so transaction rolls back
-    throw error;
+  if (!subscriptionId) {
+    console.log("No subscription linked to this payment");
+    return;
   }
+
+  // 2️⃣ Ensure subscription exists (CRITICAL for ordering)
+  
+  await client.query(`
+    INSERT INTO subscriptions (id, status)
+    VALUES ($1, 'pending')
+    ON CONFLICT (id) DO NOTHING
+  `, [subscriptionId]);
+
+  // 3️⃣ Fetch BEFORE state
+  const beforeResult = await client.query(
+    `SELECT status, expires_at, plan_id FROM subscriptions WHERE id=$1`,
+    [subscriptionId]
+  );
+
+  const before = beforeResult.rows[0];
+
+  // 4️⃣ Update subscription
+  const newExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+  await client.query(
+    `
+    UPDATE subscriptions
+    SET status='active',
+        expires_at=$1,
+        updated_at=NOW()
+    WHERE id=$2
+    `,
+    [newExpiry, subscriptionId]
+  );
+
+  // 5️⃣ Fetch AFTER state
+  const afterResult = await client.query(
+    `SELECT status, expires_at, plan_id FROM subscriptions WHERE id=$1`,
+    [subscriptionId]
+  );
+
+  const after = afterResult.rows[0];
+
+  // 6️⃣ Write audit log
+  await logSubscriptionAudit(client, {
+    subscriptionId,
+    actor: "webhook",
+    action: "status_change",
+    reason: "PAYMENT_SUCCESS",
+    before,
+    after,
+    metadata: {
+      eventId: event.id,
+      provider: "stripe"
+    }
+  });
+
 }
 
 module.exports = {
