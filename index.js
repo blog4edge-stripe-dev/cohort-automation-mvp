@@ -40,10 +40,10 @@ app.post(
     const stripeObject = event.data.object;
 
     // Debug logs
-    console.log("🔔 Event:", eventType);
+    /* console.log("🔔 Event:", eventType);
     console.log("Event ID:", eventId);
     console.log("Object ID:", stripeObject.id);
-    console.log("------------------------------------");
+    console.log("------------------------------------"); */
 
     const client = await pool.connect();
 
@@ -98,19 +98,12 @@ app.post(
           if (paymentIntent.status !== "succeeded") {
             throw new Error("PaymentIntent verification failed");
           }
-
           await handlePaymentSucceeded(event, client);
           break;
 
         case "invoice.payment_succeeded":
           console.log("Invoice payment succeeded");
           break;
-
-        /* default:
-          log("info", "Unhandled event type skipped", {
-            eventId,
-            eventType,
-          }); */
       }
 
       await client.query("COMMIT");
