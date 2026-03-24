@@ -38,14 +38,8 @@ app.post(
 
     const eventId = event.id;
     const eventType = event.type;
-    const stripeObject = event.data.object;
-
-    // Debug logs
-    /* console.log("🔔 Event:", eventType);
-    console.log("Event ID:", eventId);
-    console.log("Object ID:", stripeObject.id);
-    console.log("------------------------------------"); */
-
+    const stripeObject = event.data.object; 
+    
     const client = await pool.connect();
 
     try {
@@ -78,35 +72,9 @@ app.post(
         break;
 
 
-       case "customer.subscription.created":
+       /* case "customer.subscription.created":
           await createSubscription(event, client);
-          break;
- /* 
-        case "payment_intent.succeeded":
-
-          const paymentIntentId = stripeObject.id;
-
-            // Verify PaymentIntent state directly from Stripe - double-check critical financial events.
-            // GET /v1/payment_intents/{paymentIntentId} (https://api.stripe.com/v1/payment_intents/{id})
-            // synchronous call to Stripe because we wait for Stripe to return the state
-            // Node.js → Stripe server → Stripe response → Node.js continues
-            // Without await, code would move forward before Stripe responds. 
-            // Internally this is happening  -
-            /*
-              HTTP request → Stripe API
-              Authorization → using your secret key
-              Receive JSON → convert to JavaScript object
-              Return result
-            */
-            // Never grant access on checkout completion. - Checkout is authorization, not proof of payment.
-          /* const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-
-          if (paymentIntent.status !== "succeeded") {
-            throw new Error("PaymentIntent verification failed");
-          }
-          await handlePaymentSucceeded(event, client);
-          break; */ 
-
+          break; */
       }
 
       await client.query("COMMIT");
