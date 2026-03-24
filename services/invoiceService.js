@@ -6,10 +6,10 @@ async function handleInvoicePaymentSucceeded(event, client) {
 
   console.log("Processing Event - invoice.payment_succeeded For Incvoice Id :", invoice.id);
 
-  if (!invoice.subscription) {
+/*   if (!invoice.subscription) {
     console.log("Skipping: Not a subscription invoice");
     return;
-  }
+  } */
 
   const subscriptionId = invoice.subscription;
 
