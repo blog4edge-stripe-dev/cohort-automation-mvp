@@ -19,6 +19,7 @@ async function handleInvoicePaymentSucceeded(event, client) {
   try {
 
     // ✅ 1. Fetch latest from Stripe (source of truth)
+    console.log("Invoice subscription value:", invoice.subscription);
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
     
     // Structured Data : think of this a variable with a fields and its values - similar to temptable in Progress 4gl ; newstate temptable and then fields like susbscription_id
