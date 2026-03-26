@@ -1,8 +1,6 @@
 async function handlePaymentIntentSucceeded(event, client) {
   const paymentIntent = event.data.object;
 
-  await client.query("BEGIN");
-
   try {
 
     // 1. Fetch latest (source of truth)
@@ -15,7 +13,7 @@ async function handlePaymentIntentSucceeded(event, client) {
       customer_id: latest.customer
     };
 
-    // 2. Upsert logic
+    // 2. Upsert
     const existing = await client.query(
       `SELECT * FROM payments WHERE payment_intent_id = $1`,
       [latest.id]
@@ -34,24 +32,17 @@ async function handlePaymentIntentSucceeded(event, client) {
       );
     }
 
-    // 4. Audit
+    // 3. Audit
     await logPaymentAudit(client, {
       paymentIntentId: latest.id,
       action: existing.rowCount > 0 ? "UPDATED" : "CREATED",
       eventId: event.id
     });
 
-    // 5. Mark processed
-    await client.query(
-      `INSERT INTO stripe_events (event_id) VALUES ($1)`,
-      [event.id]
-    );
-
-    await client.query("COMMIT");
-    console.log("✅ Transaction committed:", event.type);
+    // ❌ REMOVE THIS (handled in index.js)
+    // await client.query(`INSERT INTO stripe_events...`);
 
   } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
+    throw err; // let caller handle rollback
   }
 }

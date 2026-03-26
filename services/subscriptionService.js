@@ -1,16 +1,19 @@
-const { logSubscriptionAudit } = require("../utils/logger");
-
 async function createSubscription(event, client) {
 
   const subscription = event.data.object;
-
   const subscriptionId = subscription.id;
+
+  if (!subscriptionId) {
+    throw new Error("Missing subscription ID");
+  }
 
   const expiresAt = subscription.current_period_end
     ? new Date(subscription.current_period_end * 1000)
     : null;
 
-  // 1️⃣ Fetch BEFORE (may not exist)
+  const priceId = subscription.items?.data?.[0]?.price?.id || null;
+
+  // BEFORE (optional lock for strict correctness)
   const beforeResult = await client.query(
     `SELECT status, expires_at, plan_id FROM subscriptions WHERE id=$1`,
     [subscriptionId]
@@ -18,8 +21,8 @@ async function createSubscription(event, client) {
 
   const before = beforeResult.rows[0] || null;
 
-  // 2️⃣ UPSERT (order-safe)
-  await client.query(
+  // UPSERT with RETURNING
+  const upsertResult = await client.query(
     `
     INSERT INTO subscriptions (id, customer_id, plan_id, status, expires_at)
     VALUES ($1,$2,$3,$4,$5)
@@ -30,29 +33,23 @@ async function createSubscription(event, client) {
       status = EXCLUDED.status,
       expires_at = EXCLUDED.expires_at,
       updated_at = NOW()
+    RETURNING status, expires_at, plan_id
     `,
     [
       subscriptionId,
       subscription.customer,
-      subscription.items.data[0].price.id,
+      priceId,
       subscription.status,
       expiresAt
     ]
   );
 
-  // 3️⃣ Fetch AFTER
-  const afterResult = await client.query(
-    `SELECT status, expires_at, plan_id FROM subscriptions WHERE id=$1`,
-    [subscriptionId]
-  );
+  const after = upsertResult.rows[0];
 
-  const after = afterResult.rows[0];
-
-  // 4️⃣ Audit log
   await logSubscriptionAudit(client, {
     subscriptionId,
     actor: "webhook",
-    action: "subscription_created",
+    action: before ? "UPDATED" : "CREATED",
     reason: "STRIPE_EVENT",
     before,
     after,
@@ -61,7 +58,4 @@ async function createSubscription(event, client) {
       provider: "stripe"
     }
   });
-
 }
-
-module.exports = { createSubscription };
