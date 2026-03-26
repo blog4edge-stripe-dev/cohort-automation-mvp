@@ -1,3 +1,16 @@
+require("dotenv").config();
+const express = require("express");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const pool = require("./db");
+
+const { handlePaymentSucceeded } = require("./services/paymentService");
+const { createSubscription } = require("./services/subscriptionService");
+const { handlePaymentIntentSucceeded } = require("./services/invoiceService");
+
+const { log } = require("./utils/logger");
+
+const app = express();
+
 app.post(
   "/webhook",
   express.raw({ type: "application/json" }),
@@ -76,3 +89,22 @@ app.post(
     }
   }
 );
+
+// DB test
+pool.query("SELECT NOW()")
+  .then(res => {
+    log("info", "Database connected", {
+      serverTime: res.rows[0],
+    });
+  })
+  .catch(err => {
+    log("error", "Database connection failed", {
+      error: err.message,
+    });
+  });
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  log("info", "Server started", { port: PORT });
+});
