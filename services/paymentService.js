@@ -1,78 +1,56 @@
-// services/paymentService.js
-
-const { logSubscriptionAudit } = require("../utils/logger");
-
-async function handlePaymentSucceeded(event, client) {
-
+async function handlePaymentIntentSucceeded(event, client) {
   const paymentIntent = event.data.object;
 
-  // 1️⃣ Get invoice → subscription
-  const invoiceId = paymentIntent.invoice;
+  await client.query("BEGIN");
 
-  const invoice = await require("stripe")(process.env.STRIPE_SECRET_KEY)
-    .invoices.retrieve(invoiceId);
+  try {
 
-  const subscriptionId = invoice.subscription;
+    // 1. Fetch latest (source of truth)
+    const latest = await stripe.paymentIntents.retrieve(paymentIntent.id);
 
-  if (!subscriptionId) {
-    console.log("No subscription linked to this payment");
-    return;
-  }
+    const newState = {
+      payment_intent_id: latest.id,
+      amount: latest.amount,
+      status: latest.status,
+      customer_id: latest.customer
+    };
 
-  // 2️⃣ Ensure subscription exists (CRITICAL for ordering)
-  
-  await client.query(`
-    INSERT INTO subscriptions (id, status)
-    VALUES ($1, 'pending')
-    ON CONFLICT (id) DO NOTHING
-  `, [subscriptionId]);
+    // 2. Upsert logic
+    const existing = await client.query(
+      `SELECT * FROM payments WHERE payment_intent_id = $1`,
+      [latest.id]
+    );
 
-  // 3️⃣ Fetch BEFORE state
-  const beforeResult = await client.query(
-    `SELECT status, expires_at, plan_id FROM subscriptions WHERE id=$1`,
-    [subscriptionId]
-  );
-
-  const before = beforeResult.rows[0];
-
-  // 4️⃣ Update subscription
-  const newExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-  await client.query(
-    `
-    UPDATE subscriptions
-    SET status='active',
-        expires_at=$1,
-        updated_at=NOW()
-    WHERE id=$2
-    `,
-    [newExpiry, subscriptionId]
-  );
-
-  // 5️⃣ Fetch AFTER state
-  const afterResult = await client.query(
-    `SELECT status, expires_at, plan_id FROM subscriptions WHERE id=$1`,
-    [subscriptionId]
-  );
-
-  const after = afterResult.rows[0];
-
-  // 6️⃣ Write audit log
-  await logSubscriptionAudit(client, {
-    subscriptionId,
-    actor: "webhook",
-    action: "status_change",
-    reason: "PAYMENT_SUCCESS",
-    before,
-    after,
-    metadata: {
-      eventId: event.id,
-      provider: "stripe"
+    if (existing.rowCount > 0) {
+      await client.query(
+        `UPDATE payments SET status = $1 WHERE payment_intent_id = $2`,
+        [newState.status, latest.id]
+      );
+    } else {
+      await client.query(
+        `INSERT INTO payments (payment_intent_id, amount, status)
+         VALUES ($1, $2, $3)`,
+        [newState.payment_intent_id, newState.amount, newState.status]
+      );
     }
-  });
 
+    // 4. Audit
+    await logPaymentAudit(client, {
+      paymentIntentId: latest.id,
+      action: existing.rowCount > 0 ? "UPDATED" : "CREATED",
+      eventId: event.id
+    });
+
+    // 5. Mark processed
+    await client.query(
+      `INSERT INTO stripe_events (event_id) VALUES ($1)`,
+      [event.id]
+    );
+
+    await client.query("COMMIT");
+
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  }
 }
-
-module.exports = {
-  handlePaymentSucceeded,
-};
