@@ -64,6 +64,8 @@ app.post(
         return res.status(200).json({ ignored: true });
       }
 
+      await client.query("COMMIT");
+
       // 3️⃣ Event handling (ORDER-SAFE)
       switch (eventType) {
 
@@ -71,26 +73,18 @@ app.post(
             await handleInvoicePaymentSucceeded(event, client);
         break;
 
-
-       /* case "customer.subscription.created":
+        case "customer.subscription.created":
           await createSubscription(event, client);
-          break; */
+          break;
+
+       case "payment_intent.succeeded":
+          await handlePaymentIntentSucceeded(event, client);
+        break;
+
       }
-
-      await client.query("COMMIT");
-
-      console.log("✅ Transaction committed:", eventType);
-
       return res.status(200).json({ received: true });
 
     } catch (err) {
-
-      await client.query("ROLLBACK");
-
-      log("error", "Transaction rolled back", {
-        eventId,
-        error: err.message,
-      });
 
       return res.status(500).send("Webhook processing failed");
 

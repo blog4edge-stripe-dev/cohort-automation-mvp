@@ -48,6 +48,7 @@ async function handlePaymentIntentSucceeded(event, client) {
     );
 
     await client.query("COMMIT");
+    console.log("✅ Transaction committed:", event.type);
 
   } catch (err) {
     await client.query("ROLLBACK");
